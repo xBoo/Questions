@@ -1,0 +1,50 @@
+1. 描述一下ASP.NET MVC 和Web API的技术差异。为什么微软会推出Web API？
+  在ASP.NET 中：
+  1).mvc 主要通过model view controller建立网站，而 web api 更加倾向于构建HTTP服务接口，主要用来做开放API
+  2).web api更加有利于前后端分离，让前端工程化，mvc 则通过使用视图引擎，提供后端生成HTML功能
+  3).在ASP.NET5之前，两者继承不同的controller，管道处理机制不同，在ASP.NET5之后两者统一
+  
+  在ASP.NET CORE中：两者完全合二为一，只是面向的应用场景不同，内部管道处理机制相同。
+
+2.ASP.NET MVC中，如何获取某个Action的响应时间？注意不是请求的处理时间,在上述action中，能否不剧烈影响性能情况下，把log文件记入到远程文件、数据库、服务器中?
+  1). ASP.NET中可以继承ActionFilter 后重写OnActionExecuting 和 中的OnActionExecuted 方法，创建stopwatch对象在 OnActionExecuting中将该对象写入Request的中，如：
+
+   public override Task OnActionExecutingAsync(HttpActionContext actionContext, CancellationToken cancellationToken)
+    {
+        var watch = new Stopwatch();
+        actionContext.Request.Properties[PerformanceLogHandler._key] = watch;
+        watch.Start();
+        return base.OnActionExecutingAsync(actionContext, cancellationToken);
+    }
+
+    public override Task OnActionExecutedAsync(HttpActionExecutedContext actionExecutedContext, CancellationToken cancellationToken)
+    {
+        var watch = actionExecutedContext.Request.Properties[PerformanceLogHandler._key] as Stopwatch;
+        if (watch == null) return base.OnActionExecutedAsync(actionExecutedContext, cancellationToken);
+
+        watch.Stop();
+    }
+
+    2).不影响性能本质是解决IO的性能瓶颈问题，可以有如下写入方式
+      
+      1)·先将日志写入本地缓存容器，并且通过异步线程定时批量将该容器中的数据发送至远程服务端
+      2).将日志通过异步方式送入MQ，然后消费端通过MQ消费  
+
+3.SQL Server中是否对CTE、DMV有所了解？
+
+  1).CTE：是数据库中的共用表达式，主要用于在单次查询周期中定义临时结果集，主要用于递归查询，但实际开发中，大部分情况下可能用于树形菜单的加载吧，根据目前的主流观点，不建议将业务通过Sql的方式实现，所以这种递归函数使用还是比较少的。
+
+  2).DMV：除了知道是做性能调优的，别的不太清楚。我个人的经验性能调优主要用到SQL Profiler来完成的。
+
+4.现在有生产环境，使用Cluster的异地双活机制。如何在代码层面实现当某一DB Server无法访问时，自动切换到新的active的server？如何保证请求连续性和数据一致性。
+
+  1). 异地双活主要是通过分布式系统来保证的，数据库层面，在代码中建立一个链接池，分别是主从数据库，当主数据库访问超时或异常时，通过try catch机制立即对从库进行访问。这个功能可以通过当前一个比较火的开源组件Polly来实现。
+
+  2).分布式环境下数据一致性只能保证最终一致性：
+    a 数据库层面的数据同步，
+    b 通过MQ分发进行数据库同步，
+    b 数据写入时采用分布式事务同时写，
+        
+
+5.如果使用Git作为代码管理工具的话，请描述如何将Branch1 merge到Branch2的步骤
+  工具：比如SourceTree中，先切换至Branch2，然后在Branch1中右键merge到当前分支中，如有冲突，通过工具解决冲突，然后提交。
